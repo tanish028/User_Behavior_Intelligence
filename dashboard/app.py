@@ -50,6 +50,31 @@ st.subheader("Monthly Revenue")
 st.line_chart(monthly)
 
 
+st.header("Geographic Revenue Breakdown")
+
+country_revenue = (
+    df[df["Country"] != "Unspecified"]
+    .groupby("Country")["TotalPrice"]
+    .sum()
+    .sort_values(ascending=False)
+)
+top10_countries = country_revenue.head(10)
+rest = country_revenue.iloc[10:].sum()
+top10_countries["Other (31 countries)"] = rest
+
+col1, col2 = st.columns(2)
+with col1:
+    st.subheader("Top 10 Countries by Revenue")
+    st.bar_chart(top10_countries)
+with col2:
+    st.subheader("Revenue Share")
+    uk = country_revenue.get("United Kingdom", 0)
+    non_uk = country_revenue.sum() - uk
+    st.metric("UK Revenue", f"£{uk:,.0f}", f"{uk/country_revenue.sum()*100:.1f}% of total")
+    st.metric("International Revenue", f"£{non_uk:,.0f}", f"{non_uk/country_revenue.sum()*100:.1f}% of total")
+    st.metric("Countries Served", f"{df['Country'].nunique()}")
+
+
 from recommendation import recommend_for_customer, recommend_popular
 
 st.header("Product Recommendations")
