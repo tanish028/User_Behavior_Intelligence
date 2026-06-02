@@ -2,6 +2,8 @@
 
 An end-to-end customer analytics pipeline built on the **UCI Online Retail II** dataset (~1M transactions, 5,878 customers, 2009–2011). The system cleans raw transactional data, engineers RFM features, segments customers via K-Means clustering, scores churn risk, and surfaces cluster-aware product recommendations through an interactive Streamlit dashboard.
 
+**Live demo:** https://userbehaviorintelligence-fu4vi8vjfsvnxurefjeyen.streamlit.app/
+
 ---
 
 ## Problem Statement
