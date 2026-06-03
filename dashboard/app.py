@@ -76,6 +76,28 @@ with col2:
 
 
 from recommendation import recommend_for_customer, recommend_popular
+from cohort_analysis import build_cohort_matrix, plot_cohort_heatmap
+
+st.header("Cohort Retention Analysis")
+st.write("Shows what % of each monthly cohort returned to purchase in subsequent months.")
+
+@st.cache_data
+def get_cohort_data(_df):
+    return build_cohort_matrix(_df)
+
+cohort_pct, cohort_size = get_cohort_data(df)
+
+max_periods = st.slider("Months to display", min_value=3, max_value=12, value=12)
+fig = plot_cohort_heatmap(cohort_pct, max_periods=max_periods)
+st.pyplot(fig)
+
+col1, col2, col3 = st.columns(3)
+avg_m1 = cohort_pct[1].mean()
+avg_m3 = cohort_pct[3].mean() if 3 in cohort_pct.columns else 0
+avg_m6 = cohort_pct[6].mean() if 6 in cohort_pct.columns else 0
+col1.metric("Avg Month 1 Retention", f"{avg_m1:.1f}%")
+col2.metric("Avg Month 3 Retention", f"{avg_m3:.1f}%")
+col3.metric("Avg Month 6 Retention", f"{avg_m6:.1f}%")
 
 st.header("Product Recommendations")
 
