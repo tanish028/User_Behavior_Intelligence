@@ -77,6 +77,7 @@ with col2:
 
 from recommendation import recommend_for_customer, recommend_popular
 from cohort_analysis import build_cohort_matrix, plot_cohort_heatmap
+from churn_model import create_churn_label, train_churn_model, evaluate_model, plot_feature_importance, predict_churn
 
 st.header("Cohort Retention Analysis")
 st.write("Shows what % of each monthly cohort returned to purchase in subsequent months.")
@@ -98,6 +99,59 @@ avg_m6 = cohort_pct[6].mean() if 6 in cohort_pct.columns else 0
 col1.metric("Avg Month 1 Retention", f"{avg_m1:.1f}%")
 col2.metric("Avg Month 3 Retention", f"{avg_m3:.1f}%")
 col3.metric("Avg Month 6 Retention", f"{avg_m6:.1f}%")
+
+st.header("Churn Prediction Model (XGBoost)")
+st.write("Trained on RFM scores to predict whether a customer will churn. Churn = inactive for 180+ days.")
+
+@st.cache_resource
+def train_model(_rfm):
+    rfm_labeled = create_churn_label(_rfm, recency_threshold=180)
+    model, X_test, y_test, features = train_churn_model(rfm_labeled)
+    return model, X_test, y_test, features, rfm_labeled
+
+model, X_test, y_test, features, rfm_labeled = train_model(rfm)
+
+# --- Evaluation metrics ---
+auc, eval_fig = evaluate_model(model, X_test, y_test)
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("ROC-AUC Score", f"{auc:.3f}")
+    st.caption("0.5 = random | 0.75+ = solid | 0.85+ = very good")
+with col2:
+    churned_pct = rfm_labeled["Churned"].mean() * 100
+    st.metric("Churned Customers", f"{rfm_labeled['Churned'].sum():,}", f"{churned_pct:.1f}% of base")
+
+st.subheader("Model Evaluation")
+st.pyplot(eval_fig)
+
+st.subheader("Feature Importance — What drives churn?")
+imp_fig = plot_feature_importance(model, features)
+st.pyplot(imp_fig)
+
+# --- Live prediction ---
+st.subheader("Live Churn Predictor")
+st.write("Enter a customer's RFM scores to get their churn probability.")
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    r = st.slider("R-Score (Recency)", 1, 5, 3,
+                  help="5 = bought very recently, 1 = bought a long time ago")
+with col2:
+    f = st.slider("F-Score (Frequency)", 1, 5, 3,
+                  help="5 = very frequent buyer, 1 = rarely buys")
+with col3:
+    m = st.slider("M-Score (Monetary)", 1, 5, 3,
+                  help="5 = very high spend, 1 = low spend")
+
+prob = predict_churn(model, r, f, m)
+pct = prob * 100
+
+if pct >= 70:
+    st.error(f"⚠️ Churn Probability: **{pct:.1f}%** — High Risk")
+elif pct >= 40:
+    st.warning(f"🔶 Churn Probability: **{pct:.1f}%** — Medium Risk")
+else:
+    st.success(f"✅ Churn Probability: **{pct:.1f}%** — Low Risk")
 
 st.header("Product Recommendations")
 
