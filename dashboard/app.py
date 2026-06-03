@@ -132,18 +132,17 @@ st.pyplot(imp_fig)
 st.subheader("Live Churn Predictor")
 st.write("Enter a customer's RFM scores to get their churn probability.")
 
-col1, col2, col3 = st.columns(3)
+st.caption("Note: R-Score is excluded as a feature to avoid data leakage — recency directly defines the churn label. The model predicts churn from frequency and spend alone.")
+
+col1, col2 = st.columns(2)
 with col1:
-    r = st.slider("R-Score (Recency)", 1, 5, 3,
-                  help="5 = bought very recently, 1 = bought a long time ago")
-with col2:
     f = st.slider("F-Score (Frequency)", 1, 5, 3,
                   help="5 = very frequent buyer, 1 = rarely buys")
-with col3:
+with col2:
     m = st.slider("M-Score (Monetary)", 1, 5, 3,
                   help="5 = very high spend, 1 = low spend")
 
-prob = predict_churn(model, r, f, m)
+prob = predict_churn(model, f, m)
 pct = prob * 100
 
 if pct >= 70:

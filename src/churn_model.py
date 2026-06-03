@@ -58,7 +58,11 @@ def train_churn_model(rfm):
         feature_names: List of feature names used
     """
 
-    features = ["R-Score", "F-Score", "M-Score"]
+    # R-Score is excluded: it's derived directly from recency, which defines the churn label.
+    # Including it would cause data leakage (AUC ~0.99 but model learns nothing useful).
+    # F and M scores are genuinely independent signals — frequency and spend predict churn
+    # without directly encoding it.
+    features = ["F-Score", "M-Score"]
     X = rfm[features].astype(float)
     y = rfm["Churned"]
 
@@ -176,21 +180,21 @@ def plot_feature_importance(model, feature_names, save_path=None):
 
 # 5. PREDICT FOR A SINGLE CUSTOMER
 
-def predict_churn(model, r_score, f_score, m_score):
+def predict_churn(model, f_score, m_score):
     """
-    Predicts churn probability for a single customer given their RFM scores.
+    Predicts churn probability for a single customer given their F and M scores.
+    R-Score is excluded to avoid data leakage (recency directly defines the churn label).
 
     Args:
         model: Trained XGBClassifier
-        r_score (int): Recency score 1-5 (5 = bought recently)
         f_score (int): Frequency score 1-5 (5 = very frequent)
         m_score (int): Monetary score 1-5 (5 = very high spend)
 
     Returns:
         float: Churn probability between 0 and 1
     """
-    X = pd.DataFrame([[r_score, f_score, m_score]],
-                     columns=["R-Score", "F-Score", "M-Score"])
+    X = pd.DataFrame([[f_score, m_score]],
+                     columns=["F-Score", "M-Score"])
     prob = model.predict_proba(X)[0][1]
     return prob
 
@@ -218,8 +222,8 @@ if __name__ == "__main__":
 
     # Example prediction
     print("\n=== Example Prediction ===")
-    prob = predict_churn(model, r_score=1, f_score=1, m_score=1)
-    print(f"Customer with R=1, F=1, M=1 (worst scores) → Churn probability: {prob:.1%}")
+    prob = predict_churn(model, f_score=1, m_score=1)
+    print(f"Customer with F=1, M=1 (low frequency, low spend) → Churn probability: {prob:.1%}")
 
-    prob = predict_churn(model, r_score=5, f_score=5, m_score=5)
-    print(f"Customer with R=5, F=5, M=5 (best scores)  → Churn probability: {prob:.1%}")
+    prob = predict_churn(model, f_score=5, m_score=5)
+    print(f"Customer with F=5, M=5 (high frequency, high spend) → Churn probability: {prob:.1%}")
