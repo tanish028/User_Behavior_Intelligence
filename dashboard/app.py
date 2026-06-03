@@ -104,7 +104,7 @@ st.header("Churn Prediction Model (XGBoost)")
 st.write("Trained on RFM scores to predict whether a customer will churn. Churn = inactive for 180+ days.")
 
 @st.cache_resource
-def train_model(_rfm):
+def train_model(_rfm, _version=2):  # bump version to bust cache when model changes
     rfm_labeled = create_churn_label(_rfm, recency_threshold=180)
     model, X_test, y_test, features = train_churn_model(rfm_labeled)
     return model, X_test, y_test, features, rfm_labeled
