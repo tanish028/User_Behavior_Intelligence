@@ -142,17 +142,6 @@ Min-max normalised recency in [0, 1]. Score of 1.0 = highest churn risk.
 
 ---
 
-## Deploying to Streamlit Cloud (free)
-
-1. Push this repo to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
-3. Click **New app** → select your repo → set **Main file path** to `dashboard/app.py`
-4. Click **Deploy** — your dashboard will be live at a public URL in ~2 minutes
-
-> **Note:** The pre-built `data/cleaned_data.csv` and `data/rfm_data.csv` files are committed to the repo, so no pipeline re-run is needed on deployment.
-
----
-
 ## Dataset
 
 **Online Retail II** — UCI Machine Learning Repository  
