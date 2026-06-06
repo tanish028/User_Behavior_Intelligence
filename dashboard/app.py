@@ -1,7 +1,7 @@
 import sys
 import os
 
-# Resolve paths relative to the repo root regardless of where streamlit is launched from
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT, "src"))
 
@@ -78,6 +78,7 @@ with col2:
 from recommendation import recommend_for_customer, recommend_popular
 from cohort_analysis import build_cohort_matrix, plot_cohort_heatmap
 from churn_model import create_churn_label, train_churn_model, evaluate_model, plot_feature_importance, predict_churn
+from markov_analysis import compute_monthly_segments, build_transition_matrix, plot_transition_heatmap, compute_steady_state
 
 st.header("Cohort Retention Analysis")
 st.write("Shows what % of each monthly cohort returned to purchase in subsequent months.")
@@ -99,6 +100,37 @@ avg_m6 = cohort_pct[6].mean() if 6 in cohort_pct.columns else 0
 col1.metric("Avg Month 1 Retention", f"{avg_m1:.1f}%")
 col2.metric("Avg Month 3 Retention", f"{avg_m3:.1f}%")
 col3.metric("Avg Month 6 Retention", f"{avg_m6:.1f}%")
+
+st.header("Markov Chain — Customer Segment Transitions")
+st.write("Models the probability of a customer moving between RFM segments month to month.")
+
+@st.cache_data
+def get_markov_data(_df):
+    monthly_segments = compute_monthly_segments(_df)
+    transition_matrix = build_transition_matrix(monthly_segments)
+    steady = compute_steady_state(transition_matrix)
+    return transition_matrix, steady
+
+with st.spinner("Computing monthly segments and transition matrix..."):
+    transition_matrix, steady = get_markov_data(df)
+
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    st.subheader("Transition Probability Heatmap")
+    markov_fig = plot_transition_heatmap(transition_matrix)
+    st.pyplot(markov_fig)
+
+with col2:
+    st.subheader("Long-Run Steady State")
+    st.write("Where customers settle in the long run:")
+    for segment, pct in steady.items():
+        st.metric(segment, f"{pct:.1f}%")
+
+st.caption(
+    "Each cell shows the % probability of moving from the row segment (current month) "
+    "to the column segment (next month). Diagonal = staying in the same segment."
+)
 
 st.header("Churn Prediction Model (XGBoost)")
 st.write("Trained on RFM scores to predict whether a customer will churn. Churn = inactive for 180+ days.")
