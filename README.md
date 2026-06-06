@@ -1,6 +1,6 @@
 # User Behavior Intelligence System
 
-An end-to-end customer analytics pipeline built on the **UCI Online Retail II** dataset (~1M transactions, 5,878 customers, 2009–2011). The system cleans raw transactional data, engineers RFM features, segments customers via K-Means clustering, scores churn risk, and surfaces cluster-aware product recommendations through an interactive Streamlit dashboard.
+An end-to-end customer analytics pipeline built on the **UCI Online Retail II** dataset (~1M transactions, 5,878 customers, 2009–2011). The system cleans raw transactional data, engineers RFM features, segments customers via K-Means clustering, models segment transitions with Markov chains, predicts churn with XGBoost, and surfaces cluster-aware product recommendations — all through an interactive Streamlit dashboard.
 
 **Live demo:** https://userbehaviorintelligence-fu4vi8vjfsvnxurefjeyen.streamlit.app/
 
@@ -11,8 +11,10 @@ An end-to-end customer analytics pipeline built on the **UCI Online Retail II** 
 Retailers accumulate large volumes of transactional data but rarely extract actionable customer intelligence from it. This project answers three business questions:
 
 1. **Who are our customers?** — RFM-based segmentation (Champions, Loyal, At Risk, Lost)
-2. **Which customers might churn?** — Recency-based churn risk scoring
-3. **What should we recommend?** — Cluster-aware product recommendations
+2. **How do customers move between segments?** — Markov chain transition matrix
+3. **Which customers might churn?** — XGBoost classifier (ROC-AUC: 0.778)
+4. **How long do customers stay?** — Cohort retention analysis
+5. **What should we recommend?** — Cluster-aware product recommendations
 
 ---
 
@@ -21,7 +23,7 @@ Retailers accumulate large volumes of transactional data but rarely extract acti
 | Layer | Tools |
 |---|---|
 | Data processing | pandas, numpy |
-| Machine learning | scikit-learn (KMeans, PCA, StandardScaler, silhouette score) |
+| Machine learning | scikit-learn (KMeans, PCA, StandardScaler, silhouette score), XGBoost |
 | Visualisation | matplotlib, seaborn |
 | Dashboard | Streamlit |
 | Data source | UCI Online Retail II (.xlsx via openpyxl) |
@@ -42,6 +44,9 @@ user_behavior_intelligence/
 │   ├── data_cleaning.py          # Cleans and validates transactions
 │   ├── analytics.py              # RFM computation + purchase pattern plots
 │   ├── segmentation.py           # K-Means clustering + PCA + churn risk
+│   ├── cohort_analysis.py        # Cohort retention matrix + heatmap
+│   ├── markov_analysis.py        # Markov chain segment transition matrix
+│   ├── churn_model.py            # XGBoost churn classifier + evaluation
 │   └── recommendation.py        # Cluster-aware product recommendations
 ├── dashboard/
 │   └── app.py                    # Streamlit dashboard
@@ -98,6 +103,38 @@ Outliers capped at 99th percentile before scaling to reduce the influence of who
 - **Algorithm**: K-Means with `StandardScaler` normalisation
 - **K selection**: Elbow method (inertia) + silhouette score across k=2..10
 - **Dimensionality reduction**: PCA (2 components) for cluster visualisation
+
+### Churn Prediction (XGBoost)
+
+**Label:** A customer is marked as churned if they have not purchased in 180+ days (`recency > 180`).
+
+**Features:** F-Score and M-Score only. R-Score was initially included but produced an AUC of 0.996 — identified as **data leakage** (R-Score is a quintile of recency, which directly encodes the churn label). Removing R-Score gives an honest AUC of **0.778**.
+
+**Model:** `XGBClassifier` with 100 trees, max depth 4, learning rate 0.1, and `scale_pos_weight` to handle class imbalance (40.8% churned).
+
+**Evaluation:**
+
+| Metric | Value |
+|---|---|
+| ROC-AUC | 0.778 |
+| Dominant feature | F-Score (importance: 0.91) |
+| Second feature | M-Score (importance: 0.09) |
+
+**ROC-AUC interpretation:** Measures the probability that the model scores a randomly chosen churner higher than a randomly chosen non-churner. 0.5 = random guessing, 1.0 = perfect. 0.778 means the model correctly ranks churners above non-churners 77.8% of the time.
+
+**Key insight:** Purchase frequency (F-Score) is a far stronger churn signal than monetary spend (M-Score). Customers who buy regularly are much harder to lose than those who made a single large purchase.
+
+### Markov Chain Transition Analysis
+
+- Computes each customer's RFM segment every month
+- Builds a transition probability matrix: probability of moving from segment X to segment Y next month
+- Computes the steady-state distribution using the power method (long-run segment proportions)
+
+### Cohort Retention Analysis
+
+- Groups customers by first purchase month
+- Tracks what % of each cohort returned in months 1, 2, 3...
+- Visualised as a colour-coded heatmap
 
 ### Churn Risk Score
 
