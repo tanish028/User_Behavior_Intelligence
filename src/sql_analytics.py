@@ -27,7 +27,7 @@ def create_db(df: pd.DataFrame, rfm: pd.DataFrame) -> sqlite3.Connection:
     Returns:
         conn : open sqlite3 connection (caller must close when done)
     """
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
     df.to_sql("transactions", conn, index=False, if_exists="replace")
     rfm.reset_index().to_sql("rfm", conn, index=False, if_exists="replace")
     return conn
