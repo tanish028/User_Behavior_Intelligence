@@ -226,25 +226,33 @@ def compute_shap_values(model, X_test):
 
 def plot_shap_summary(shap_values, X_test, save_path=None):
     """
-    Plots SHAP summary — feature importance across all test customers.
+    Plots a SHAP bar summary — mean absolute SHAP value per feature.
 
-    Each dot is one customer. X-axis = SHAP value (impact on prediction).
-    Color = feature value (red = high, blue = low).
+    Bar length = how much that feature moves the churn probability on average
+    across all customers in the test set.
 
-    Interpretation:
-    - F-Score dots on the right with blue color = low frequency → high churn risk
-    - F-Score dots on the left with red color = high frequency → low churn risk
+    With only 2 features, bar chart is far more readable than dot/beeswarm.
     """
-    shap.summary_plot(
-        shap_values,
-        X_test,
-        plot_type="dot",
-        show=False
-    )
-    plt.title("SHAP Summary — Feature Impact on Churn Probability", fontsize=13, pad=15)
-    plt.tight_layout()
+    mean_abs = np.abs(shap_values).mean(axis=0)
+    features = X_test.columns.tolist()
 
-    fig = plt.gcf()
+    sorted_idx = np.argsort(mean_abs)
+    sorted_features = [features[i] for i in sorted_idx]
+    sorted_vals = mean_abs[sorted_idx]
+
+    fig, ax = plt.subplots(figsize=(8, 3.5))
+    bars = ax.barh(sorted_features, sorted_vals,
+                   color=["#4a90d9", "#e05c5c"], edgecolor="white", height=0.45)
+
+    for bar, val in zip(bars, sorted_vals):
+        ax.text(bar.get_width() + 0.005, bar.get_y() + bar.get_height() / 2,
+                f"{val:.3f}", va="center", fontsize=11, fontweight="bold")
+
+    ax.set_xlabel("Average impact on churn probability\n(mean |SHAP value| across all customers)", fontsize=10)
+    ax.set_title("What drives churn? — SHAP Feature Importance", fontsize=13)
+    ax.set_xlim(0, max(sorted_vals) * 1.25)
+    ax.spines[["top", "right"]].set_visible(False)
+    plt.tight_layout()
 
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
@@ -291,19 +299,17 @@ def plot_shap_waterfall(explainer, shap_values, X_test, customer_idx=0, save_pat
 
     base_prob = _sigmoid(base_value)
     final_prob = _sigmoid(base_value + sum(sv))
-    ax.set_title(
-        f"SHAP Waterfall — Customer #{X_test.index[customer_idx]}\n"
-        f"Base probability: {base_prob:.1%}  →  Final prediction: {final_prob:.1%}",
-        fontsize=12
-    )
-    ax.set_xlabel("SHAP Value (impact on log-odds of churn)", fontsize=10)
-    ax.annotate(
-        "Red = increases churn risk  |  Blue = decreases churn risk",
-        xy=(0.5, -0.15), xycoords="axes fraction",
-        ha="center", fontsize=9, color="grey"
-    )
+    direction = "↑ above" if final_prob > base_prob else "↓ below"
 
-    plt.tight_layout()
+    ax.set_title(
+        f"Why is Customer #{X_test.index[customer_idx]} predicted to {'churn' if final_prob >= 0.5 else 'stay'}?\n"
+        f"Average customer: {base_prob:.0%} churn risk  →  This customer: {final_prob:.0%} churn risk",
+        fontsize=11
+    )
+    ax.set_xlabel("How much each feature shifts the churn probability", fontsize=10)
+    ax.spines[["top", "right"]].set_visible(False)
+
+    plt.tight_layout(pad=1.5)
 
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")

@@ -165,30 +165,38 @@ imp_fig = plot_feature_importance(model, features)
 st.pyplot(imp_fig)
 
 # --- SHAP explainability ---
-st.subheader("SHAP Explainability")
+st.subheader("SHAP Explainability — Why did the model predict that?")
 st.write(
-    "SHAP (SHapley Additive exPlanations) shows how much each feature contributed "
-    "to each prediction — not just which features matter overall, but *why* the model "
-    "gave a specific customer their churn probability."
+    "The XGBoost model gives every customer a churn probability — but *why*? "
+    "SHAP answers that by measuring how much each feature pushed the prediction "
+    "up or down compared to the average customer."
 )
 
 with st.spinner("Computing SHAP values..."):
     explainer, shap_values = compute_shap_values(model, X_test)
 
-st.markdown("**Summary Plot** — each dot is one customer. "
-            "Red dots = high feature value, blue = low. "
-            "X-axis position shows impact on churn probability.")
+st.markdown("#### Feature Impact (averaged across all customers)")
+st.write(
+    "The bar length shows how much a feature moves the churn probability on average. "
+    "F-Score dominates — **how often a customer buys** is a much stronger predictor "
+    "of churn than how much they spend."
+)
 shap_summary_fig = plot_shap_summary(shap_values, X_test)
 st.pyplot(shap_summary_fig)
 
-st.markdown("**Waterfall Plot** — explains one customer's prediction step by step.")
+st.markdown("#### Why was *this* customer flagged?")
+st.write(
+    "Select a customer below to see exactly why they got their churn score. "
+    "Each bar shows how that feature shifted their probability away from the average."
+)
 max_idx = len(X_test) - 1
-customer_idx = st.slider("Select customer index (from test set)", 0, min(max_idx, 50), 0)
+customer_idx = st.slider("Customer index (test set)", 0, min(max_idx, 50), 0)
 shap_wf_fig = plot_shap_waterfall(explainer, shap_values, X_test, customer_idx=customer_idx)
 st.pyplot(shap_wf_fig)
 st.caption(
-    "The waterfall starts at the base probability (average churn rate across all customers), "
-    "then adds each feature's contribution to reach this customer's final prediction."
+    "🔴 Red bar = this feature increased churn risk  |  "
+    "🔵 Blue bar = this feature reduced churn risk. "
+    "The longer the bar, the stronger the effect."
 )
 
 # --- Live prediction ---
