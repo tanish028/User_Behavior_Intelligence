@@ -77,7 +77,11 @@ with col2:
 
 from recommendation import recommend_for_customer, recommend_popular
 from cohort_analysis import build_cohort_matrix, plot_cohort_heatmap
-from churn_model import create_churn_label, train_churn_model, evaluate_model, plot_feature_importance, predict_churn
+from churn_model import (
+    create_churn_label, train_churn_model, evaluate_model,
+    plot_feature_importance, predict_churn,
+    compute_shap_values, plot_shap_summary, plot_shap_waterfall
+)
 from markov_analysis import compute_monthly_segments, build_transition_matrix, plot_transition_heatmap, compute_steady_state
 
 st.header("Cohort Retention Analysis")
@@ -136,7 +140,7 @@ st.header("Churn Prediction Model (XGBoost)")
 st.write("Trained on RFM scores to predict whether a customer will churn. Churn = inactive for 180+ days.")
 
 @st.cache_resource
-def train_model(_rfm, _version=2):  # bump version to bust cache when model changes
+def train_model(_rfm, _version=3):  # bump version to bust cache when model changes
     rfm_labeled = create_churn_label(_rfm, recency_threshold=180)
     model, X_test, y_test, features = train_churn_model(rfm_labeled)
     return model, X_test, y_test, features, rfm_labeled
@@ -159,6 +163,33 @@ st.pyplot(eval_fig)
 st.subheader("Feature Importance — What drives churn?")
 imp_fig = plot_feature_importance(model, features)
 st.pyplot(imp_fig)
+
+# --- SHAP explainability ---
+st.subheader("SHAP Explainability")
+st.write(
+    "SHAP (SHapley Additive exPlanations) shows how much each feature contributed "
+    "to each prediction — not just which features matter overall, but *why* the model "
+    "gave a specific customer their churn probability."
+)
+
+with st.spinner("Computing SHAP values..."):
+    explainer, shap_values = compute_shap_values(model, X_test)
+
+st.markdown("**Summary Plot** — each dot is one customer. "
+            "Red dots = high feature value, blue = low. "
+            "X-axis position shows impact on churn probability.")
+shap_summary_fig = plot_shap_summary(shap_values, X_test)
+st.pyplot(shap_summary_fig)
+
+st.markdown("**Waterfall Plot** — explains one customer's prediction step by step.")
+max_idx = len(X_test) - 1
+customer_idx = st.slider("Select customer index (from test set)", 0, min(max_idx, 50), 0)
+shap_wf_fig = plot_shap_waterfall(explainer, shap_values, X_test, customer_idx=customer_idx)
+st.pyplot(shap_wf_fig)
+st.caption(
+    "The waterfall starts at the base probability (average churn rate across all customers), "
+    "then adds each feature's contribution to reach this customer's final prediction."
+)
 
 # --- Live prediction ---
 st.subheader("Live Churn Predictor")

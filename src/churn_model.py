@@ -11,6 +11,7 @@ from sklearn.metrics import (
     roc_curve,
     ConfusionMatrixDisplay
 )
+import shap
 
 # 1. LABEL CREATION
 
@@ -198,7 +199,119 @@ def predict_churn(model, f_score, m_score):
     prob = model.predict_proba(X)[0][1]
     return prob
 
-# 6. MAIN — train, evaluate, save plots
+# 6. SHAP EXPLAINABILITY
+
+def compute_shap_values(model, X_test):
+    """
+    Computes SHAP values for the test set.
+
+    SHAP (SHapley Additive exPlanations) fairly distributes each prediction
+    among the input features based on their contribution.
+
+    Positive SHAP value = feature pushed churn probability UP
+    Negative SHAP value = feature pushed churn probability DOWN
+
+    Args:
+        model: Trained XGBClassifier
+        X_test (pd.DataFrame): Test features
+
+    Returns:
+        explainer: SHAP TreeExplainer object
+        shap_values: SHAP values array (shape: n_samples x n_features)
+    """
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_test)
+    return explainer, shap_values
+
+
+def plot_shap_summary(shap_values, X_test, save_path=None):
+    """
+    Plots SHAP summary — feature importance across all test customers.
+
+    Each dot is one customer. X-axis = SHAP value (impact on prediction).
+    Color = feature value (red = high, blue = low).
+
+    Interpretation:
+    - F-Score dots on the right with blue color = low frequency → high churn risk
+    - F-Score dots on the left with red color = high frequency → low churn risk
+    """
+    shap.summary_plot(
+        shap_values,
+        X_test,
+        plot_type="dot",
+        show=False
+    )
+    plt.title("SHAP Summary — Feature Impact on Churn Probability", fontsize=13, pad=15)
+    plt.tight_layout()
+
+    fig = plt.gcf()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    return fig
+
+
+def _sigmoid(x):
+    """Sigmoid (logistic) function — converts log-odds to probability."""
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+def plot_shap_waterfall(explainer, shap_values, X_test, customer_idx=0, save_path=None):
+    """
+    Plots a SHAP waterfall for a single customer — shows exactly why
+    the model predicted that specific churn probability.
+
+    Starts from the base value (average prediction across all customers),
+    then adds each feature's contribution to arrive at the final prediction.
+
+    Args:
+        customer_idx (int): Index of customer in X_test to explain
+    """
+    base_value = explainer.expected_value
+    sv = shap_values[customer_idx]
+    feature_vals = X_test.iloc[customer_idx]
+
+    features = X_test.columns.tolist()
+    bars = []
+    labels = []
+
+    for feat, sv_val, fv in zip(features, sv, feature_vals):
+        bars.append(sv_val)
+        labels.append(f"{feat} = {fv:.0f}")
+
+    colors = ["#e05c5c" if b > 0 else "#4a90d9" for b in bars]
+    y_pos = range(len(bars))
+
+    fig, ax = plt.subplots(figsize=(9, 4))
+    ax.barh(list(y_pos), bars, color=colors, edgecolor="white")
+    ax.set_yticks(list(y_pos))
+    ax.set_yticklabels(labels, fontsize=11)
+    ax.axvline(0, color="black", linewidth=0.8)
+
+    base_prob = _sigmoid(base_value)
+    final_prob = _sigmoid(base_value + sum(sv))
+    ax.set_title(
+        f"SHAP Waterfall — Customer #{X_test.index[customer_idx]}\n"
+        f"Base probability: {base_prob:.1%}  →  Final prediction: {final_prob:.1%}",
+        fontsize=12
+    )
+    ax.set_xlabel("SHAP Value (impact on log-odds of churn)", fontsize=10)
+    ax.annotate(
+        "Red = increases churn risk  |  Blue = decreases churn risk",
+        xy=(0.5, -0.15), xycoords="axes fraction",
+        ha="center", fontsize=9, color="grey"
+    )
+
+    plt.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    return fig
+
+
+# 7. MAIN — train, evaluate, save plots
 
 if __name__ == "__main__":
     rfm = pd.read_csv("data/rfm_data.csv", index_col="CustomerID")

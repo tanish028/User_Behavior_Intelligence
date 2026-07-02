@@ -23,7 +23,7 @@ Retailers accumulate large volumes of transactional data but rarely extract acti
 | Layer | Tools |
 |---|---|
 | Data processing | pandas, numpy |
-| Machine learning | scikit-learn (KMeans, PCA, StandardScaler, silhouette score), XGBoost |
+| Machine learning | scikit-learn (KMeans, PCA, StandardScaler, silhouette score), XGBoost, SHAP |
 | Visualisation | matplotlib, seaborn |
 | Dashboard | Streamlit |
 | Data source | UCI Online Retail II (.xlsx via openpyxl) |
@@ -123,6 +123,15 @@ Outliers capped at 99th percentile before scaling to reduce the influence of who
 **ROC-AUC interpretation:** Measures the probability that the model scores a randomly chosen churner higher than a randomly chosen non-churner. 0.5 = random guessing, 1.0 = perfect. 0.778 means the model correctly ranks churners above non-churners 77.8% of the time.
 
 **Key insight:** Purchase frequency (F-Score) is a far stronger churn signal than monetary spend (M-Score). Customers who buy regularly are much harder to lose than those who made a single large purchase.
+
+### SHAP Explainability
+
+Model predictions are explained using SHAP (SHapley Additive exPlanations), which fairly distributes each prediction's output among the input features using game-theoretic Shapley values.
+
+- **Summary plot** — shows which features drove predictions across the entire test set; each dot is one customer, color indicates feature value (red = high, blue = low)
+- **Waterfall plot** — explains a single customer's prediction step by step, starting from the dataset's average churn rate and adding each feature's contribution
+
+This moves beyond "which features matter globally" to "why did the model flag *this* customer as at-risk."
 
 ### Markov Chain Transition Analysis
 
