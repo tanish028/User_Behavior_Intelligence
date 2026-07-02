@@ -11,7 +11,6 @@ import numpy as np
 st.set_page_config(page_title="User Behavior Intelligence",
                    page_icon="\U0001f4ca", layout="wide")
 
-# CSS
 st.markdown("""
 <style>
 @keyframes fadeInUp {
@@ -76,11 +75,10 @@ def _fig(w=8, h=4):
     fig.patch.set_facecolor(BG)
     return fig, ax
 
-def _gbp(v): return f"£{v:,.0f}"
+def _gbp(v):  return f"£{v:,.0f}"
 def _gbpk(v): return f"£{v/1000:.0f}K"
 def _gbpm(v): return f"£{v/1e6:.1f}M"
 
-# Imports
 from recommendation import recommend_for_customer, recommend_popular, evaluate_recommendations
 from cohort_analysis import build_cohort_matrix, plot_cohort_heatmap
 from churn_model import (create_churn_label, train_churn_model, evaluate_model,
@@ -94,7 +92,6 @@ from forecasting import (prepare_monthly_revenue, decompose_and_forecast,
                          plot_forecast, plot_seasonal_pattern)
 from clv_model import compute_clv, plot_clv_by_segment, plot_clv_vs_churn
 
-# Cache functions (all at module level)
 @st.cache_data
 def load_data():
     df  = pd.read_csv(os.path.join(ROOT,"data","cleaned_data.csv"), parse_dates=["InvoiceDate"])
@@ -125,27 +122,28 @@ def get_rec_metrics(_df, _rfm):
 def get_forecast(_df):
     monthly = prepare_monthly_revenue(_df)
     parts   = decompose_and_forecast(monthly, periods_ahead=6)
-    # parts = (trend_vals, seasonal_idx, fitted, forecast, lower, upper, residual_std)
     return (monthly,) + parts
 
-@st.cache_resource
-def get_db(_df, _rfm):
-    return create_db(_df, _rfm)
+@st.cache_data
+def run_sql(_df, _rfm, sql: str) -> pd.DataFrame:
+    """Fresh connection per query -> no cross-thread SQLite issues."""
+    conn = create_db(_df, _rfm)
+    result = run_query(conn, sql)
+    conn.close()
+    return result
 
 @st.cache_data
 def get_clv_data(_df, _rfm):
     model, _, _, _, _ = train_model(_rfm)
     return compute_clv(_df, _rfm, model)
 
-# Load data
 df, rfm = load_data()
 df["Month"]     = df["InvoiceDate"].dt.to_period("M").astype(str)
 df["DayOfWeek"] = df["InvoiceDate"].dt.day_name()
 df["Hour"]      = df["InvoiceDate"].dt.hour
 
-# Header + KPIs
 st.title("\U0001f4ca User Behavior Intelligence")
-st.caption("End-to-end customer analytics · UCI Online Retail II · 1M+ transactions · 5,878 customers · 2009–2011")
+st.caption("End-to-end customer analytics · UCI Online Retail II · 1M+ transactions · 5,878 customers · 2009-2011")
 k1,k2,k3,k4 = st.columns(4)
 k1.metric("Customers",     f"{rfm.shape[0]:,}")
 k2.metric("Total Revenue", _gbp(df['TotalPrice'].sum()))
@@ -153,8 +151,6 @@ k3.metric("Total Orders",  f"{df['Invoice'].nunique():,}")
 k4.metric("Countries",     f"{df['Country'].nunique()}")
 st.divider()
 
-# Tabs
-# Pre-load model at module level so Tab 9 can use it without depending on Tab 8 having run
 _model, _X_test, _y_test, _features, _rfm_l = train_model(rfm)
 
 tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9,tab10 = st.tabs([
@@ -179,13 +175,13 @@ with tab1:
     st.markdown(f"""
     <div class="kf-grid">
       <div class="kf-card blue"><h2>{rfm.shape[0]:,}</h2>
-        <p>Unique customers across<br>41 countries, 2009–2011</p></div>
+        <p>Unique customers across<br>41 countries, 2009-2011</p></div>
       <div class="kf-card red"><h2>{churn_pct}%</h2>
         <p>Customers in At-Risk or<br>Lost segments right now</p></div>
       <div class="kf-card green"><h2>{_gbpm(df["TotalPrice"].sum())}</h2>
         <p>Total revenue generated<br>across the full period</p></div>
       <div class="kf-card amber"><h2>{peak_m}</h2>
-        <p>Peak revenue month —<br>Q4 seasonal spike every year</p></div>
+        <p>Peak revenue month --<br>Q4 seasonal spike every year</p></div>
     </div>""", unsafe_allow_html=True)
 
     st.subheader("Customer Segments")
@@ -215,7 +211,7 @@ with tab1:
         ax.set_xlim(0,cl.max()*1.18)
         plt.tight_layout(); st.pyplot(fig); plt.close(fig)
 
-    st.info("**\U0001f4a1 Insight:** Most customers fall into At Risk or Lost — normal for e-commerce with high one-time buyer rates. High Value cluster = wholesale/B2B buyers.")
+    st.info("**\U0001f4a1 Insight:** Most customers fall into At Risk or Lost -- normal for e-commerce with high one-time buyer rates. High Value cluster = wholesale/B2B buyers.")
     st.divider()
     st.subheader("Sales Trends")
 
@@ -253,7 +249,7 @@ with tab1:
         _style_ax(ax,"Revenue by Hour (amber=peak)","Hour","Revenue")
         plt.tight_layout(); st.pyplot(fig); plt.close(fig)
 
-    st.info("**\U0001f4a1 Insight:** Revenue spikes Oct–Nov each year (seasonal gift buying). Orders peak 10 AM–3 PM weekdays, near-zero Sundays — consistent with B2B wholesale.")
+    st.info("**\U0001f4a1 Insight:** Revenue spikes Oct-Nov each year (seasonal gift buying). Orders peak 10 AM-3 PM weekdays, near-zero Sundays -- consistent with B2B wholesale.")
     st.warning("**⚠️ Data quality:** ~24% of raw transactions had no Customer ID and were excluded from RFM analysis.")
 
 # TAB 2 - SQL ANALYTICS
@@ -264,11 +260,10 @@ with tab2:
         "Select a query to see the SQL, run it, and read the business interpretation. "
         "The same SQL runs unchanged on PostgreSQL or BigQuery."
     )
-    conn       = get_db(df, rfm)
     query_name = st.selectbox("Select a query", list(QUERIES.keys()))
     q          = QUERIES[query_name]
     st.markdown(f'<div class="sql-box">{q["sql"].strip()}</div>', unsafe_allow_html=True)
-    result = run_query(conn, q["sql"])
+    result = run_sql(df, rfm, q["sql"])
     st.dataframe(result, use_container_width=True)
     st.info(f"**\U0001f4a1 Insight:** {q['insight']}")
     st.caption(f"{len(result):,} rows returned")
@@ -300,7 +295,7 @@ with tab3:
         st.metric("UK Revenue",            _gbp(uk),     f"{uk/cr.sum()*100:.1f}% of total")
         st.metric("International Revenue", _gbp(non_uk), f"{non_uk/cr.sum()*100:.1f}% of total")
         st.metric("Countries Served",      str(df["Country"].nunique()))
-    st.info("**\U0001f4a1 Insight:** UK is ~85% of revenue — significant concentration risk. Netherlands, Ireland, Germany, France are the top international markets.")
+    st.info("**\U0001f4a1 Insight:** UK is ~85% of revenue -- significant concentration risk. Netherlands, Ireland, Germany, France are the top international markets.")
     st.warning("**⚠️ Concentration risk:** 85% tied to one country means any UK disruption has outsized impact.")
 
 # TAB 4 - COHORT RETENTION
@@ -318,12 +313,12 @@ with tab4:
     c1.metric("Avg Month-1 Retention", f"{avg_m1:.1f}%")
     c2.metric("Avg Month-3 Retention", f"{avg_m3:.1f}%")
     c3.metric("Avg Month-6 Retention", f"{avg_m6:.1f}%")
-    st.error(f"**\U0001f6a8 Key finding:** Only {avg_m1:.1f}% of new customers return in month 1 — 3 in 4 are lost immediately. A 10-point improvement here outweighs acquiring 10% more new customers.")
+    st.error(f"**\U0001f6a8 Key finding:** Only {avg_m1:.1f}% of new customers return in month 1 -- 3 in 4 are lost immediately. A 10-point improvement here outweighs acquiring 10% more new customers.")
     st.info("**\U0001f4a1 Action:** Trigger an automated follow-up within 7 days of first purchase.")
 
 # TAB 5 - CUSTOMER JOURNEYS (MARKOV)
 with tab5:
-    st.header("Customer Segment Transitions — Markov Chain")
+    st.header("Customer Segment Transitions -- Markov Chain")
     st.write("Tracks how customers move between RFM segments month-to-month and projects the long-run distribution.")
     with st.spinner("Computing transition matrix..."):
         tm, steady = get_markov_data(df)
@@ -337,32 +332,32 @@ with tab5:
         for seg,pct in steady.items():
             st.metric(seg, f"{pct:.1f}%")
     st.error(f"**\U0001f6a8 Key finding:** {steady.get('Lost',0):.1f}% of customers will eventually reach Lost if no intervention occurs.")
-    st.info(f"**\U0001f4a1 Insight:** Champions stabilise at {steady.get('Champions',0):.1f}% long-run. Intercept the Loyal → At Risk transition early.")
+    st.info(f"**\U0001f4a1 Insight:** Champions stabilise at {steady.get('Champions',0):.1f}% long-run. Intercept the Loyal -> At Risk transition early.")
 
 # TAB 6 - FORECASTING
 with tab6:
     st.header("Revenue Forecasting")
     st.write(
-        "Classical time-series decomposition implemented from scratch in numpy: "
+        "Classical time-series decomposition: "
         "linear OLS trend + monthly seasonal indices + 95% confidence band. "
-        "No external forecasting library required."
+        "Implemented from scratch in numpy -- no external forecasting library required."
     )
     with st.spinner("Running forecast..."):
-        fc_result  = get_forecast(df)
-    monthly    = fc_result[0]
-    trend_vals = fc_result[1]
+        fc_result    = get_forecast(df)
+    monthly      = fc_result[0]
+    trend_vals   = fc_result[1]
     seasonal_idx = fc_result[2]
-    fitted     = fc_result[3]
-    forecast   = fc_result[4]
-    lower      = fc_result[5]
-    upper      = fc_result[6]
-    res_std    = fc_result[7]
+    fitted       = fc_result[3]
+    forecast     = fc_result[4]
+    lower        = fc_result[5]
+    upper        = fc_result[6]
+    res_std      = fc_result[7]
 
     slope = float(np.polyfit(range(len(monthly)), monthly.values, 1)[0])
     c1,c2,c3 = st.columns(3)
-    c1.metric("Monthly Trend",        f"{_gbp(slope)}/mo", help="Linear trend slope")
+    c1.metric("Monthly Trend",        _gbp(slope) + "/mo")
     c2.metric("Next Month Forecast",  _gbp(forecast.iloc[0]))
-    c3.metric("Forecast Uncertainty", _gbp(res_std),       help="1-sigma residual std")
+    c3.metric("Forecast Uncertainty", _gbp(res_std), help="1-sigma residual std")
 
     fig = plot_forecast(monthly, fitted, forecast, lower, upper)
     st.pyplot(fig); plt.close(fig)
@@ -371,9 +366,9 @@ with tab6:
         "Step 1: fit linear trend via OLS. "
         "Step 2: compute average monthly deviation from trend (seasonal index per calendar month). "
         "Step 3: project trend forward and add seasonal adjustment. "
-        "Confidence band = 1.96 × historical residual std."
+        "Confidence band = 1.96 x historical residual std."
     )
-    with st.expander("\U0001f4c5 Seasonal Pattern — which months run above/below trend"):
+    with st.expander("\U0001f4c5 Seasonal Pattern -- which months run above/below trend"):
         fig2 = plot_seasonal_pattern(seasonal_idx)
         st.pyplot(fig2); plt.close(fig2)
         st.info("**\U0001f4a1 Insight:** Green months run above trend, red below. Use this calendar to plan inventory and marketing spend in advance.")
@@ -382,7 +377,7 @@ with tab6:
 with tab7:
     st.header("Customer Lifetime Value (CLV)")
     st.write(
-        "CLV = avg monthly spend × expected months remaining, "
+        "CLV = avg monthly spend x expected months remaining, "
         "where expected months = 1 / monthly churn probability (geometric distribution). "
         "Connects directly to the XGBoost churn model."
     )
@@ -400,7 +395,7 @@ with tab7:
     st.info("**\U0001f4a1 Insight:** Champions have the highest average CLV by a large margin. Even a small reduction in Champions churn has an outsized revenue impact.")
 
     st.divider()
-    st.subheader("CLV vs Churn Risk — Who to prioritise?")
+    st.subheader("CLV vs Churn Risk -- Who to prioritise?")
     st.write("Top-right quadrant: high CLV + high churn risk = where retention spend should be focused.")
     fig2 = plot_clv_vs_churn(clv_df)
     st.pyplot(fig2); plt.close(fig2)
@@ -416,8 +411,8 @@ with tab7:
 
 # TAB 8 - CHURN PREDICTION
 with tab8:
-    st.header("Churn Prediction — XGBoost")
-    st.write("Churned = no purchase in 180+ days. Features: F-Score and M-Score only (R-Score excluded — data leakage).")
+    st.header("Churn Prediction -- XGBoost")
+    st.write("Churned = no purchase in 180+ days. Features: F-Score and M-Score only (R-Score excluded -- data leakage).")
     model,X_test,y_test,features,rfm_l = _model,_X_test,_y_test,_features,_rfm_l
     auc,eval_fig = evaluate_model(model, X_test, y_test)
     c1,c2,c3 = st.columns(3)
@@ -426,13 +421,13 @@ with tab8:
     c3.metric("Churn Rate",        f"{rfm_l['Churned'].mean()*100:.1f}%")
     st.info(f"**\U0001f4a1 What AUC {auc:.3f} means:** If you pick one random churner and one active customer, the model correctly ranks the churner as riskier {auc*100:.1f}% of the time. Random = 50%.")
 
-    with st.expander("\U0001f4c8 Model Evaluation — Confusion Matrix & ROC Curve"):
+    with st.expander("\U0001f4c8 Model Evaluation -- Confusion Matrix & ROC Curve"):
         st.pyplot(eval_fig); plt.close(eval_fig)
     with st.expander("\U0001f50d Feature Importance"):
         imp_fig = plot_feature_importance(model, features)
         st.pyplot(imp_fig); plt.close(imp_fig)
         st.info("**\U0001f4a1 Insight:** F-Score drives ~91% of predictive power. How often a customer buys matters far more than how much they spend.")
-    with st.expander("\U0001f9e0 SHAP Explainability — Why was this customer flagged?"):
+    with st.expander("\U0001f9e0 SHAP Explainability -- Why was this customer flagged?"):
         with st.spinner("Computing SHAP values..."):
             explainer, shap_vals = compute_shap_values(model, X_test)
         fig_s = plot_shap_summary(shap_vals, X_test)
@@ -444,14 +439,14 @@ with tab8:
 
     st.divider()
     st.subheader("\U0001f3af Live Churn Predictor")
-    st.caption("R-Score excluded — recency directly defines the churn label so including it would be data leakage.")
+    st.caption("R-Score excluded -- recency directly defines the churn label so including it would be data leakage.")
     c1,c2 = st.columns(2)
-    with c1: f = st.slider("F-Score (Frequency)", 1, 5, 3, help="5=very frequent | 1=rarely buys")
-    with c2: m = st.slider("M-Score (Monetary)",  1, 5, 3, help="5=high spend | 1=low spend")
+    with c1: f = st.slider("F-Score (Frequency)", 1, 5, 3)
+    with c2: m = st.slider("M-Score (Monetary)",  1, 5, 3)
     prob = predict_churn(model, f, m); pct = prob*100
-    if   pct >= 70: st.error(   f"**{pct:.1f}% churn risk** — High. Prioritise for re-engagement campaign.")
-    elif pct >= 40: st.warning( f"**{pct:.1f}% churn risk** — Medium. Consider a targeted offer.")
-    else:           st.success( f"**{pct:.1f}% churn risk** — Low. Healthy engagement signals.")
+    if   pct >= 70: st.error(   f"**{pct:.1f}% churn risk** -- High. Prioritise for re-engagement campaign.")
+    elif pct >= 40: st.warning( f"**{pct:.1f}% churn risk** -- Medium. Consider a targeted offer.")
+    else:           st.success( f"**{pct:.1f}% churn risk** -- Low. Healthy engagement signals.")
 
 # TAB 9 - RECOMMENDATIONS
 with tab9:
@@ -475,9 +470,9 @@ with tab9:
         ms = int(rfm.loc[selected,"M-Score"])
         cp = predict_churn(_model, fs, ms)
         c1,c2,c3 = st.columns(3)
-        c1.metric("Segment",     sg)
-        c2.metric("Cluster",     cl)
-        c3.metric("Churn Risk",  f"{cp*100:.1f}%")
+        c1.metric("Segment",    sg)
+        c2.metric("Cluster",    cl)
+        c3.metric("Churn Risk", f"{cp*100:.1f}%")
         c1,c2 = st.columns(2)
         with c1:
             st.subheader("Global Popular Products")
@@ -502,7 +497,7 @@ with tab10:
 |---|---|---|
 | Data ingestion | data_loader.py | Raw DataFrame |
 | Cleaning | data_cleaning.py | 797K clean rows |
-| Feature engineering | analytics.py | RFM scores 1–5 |
+| Feature engineering | analytics.py | RFM scores 1-5 |
 | SQL analytics | sql_analytics.py | 7 analytical queries on SQLite |
 | Segmentation | segmentation.py | K-Means clusters, PCA, silhouette 0.528 |
 | Forecasting | forecasting.py | 6-month revenue forecast (trend + seasonal) |
@@ -514,20 +509,19 @@ with tab10:
 | Dashboard | dashboard/app.py | Streamlit, 10 tabs, live predictors |
 """)
 
-# Sidebar
 with st.sidebar:
     st.title("About")
     st.write("**Dataset:** UCI Online Retail II")
     st.write("**Customers:** 5,878 | **Transactions:** 1M+")
-    st.write("**Period:** Dec 2009 – Dec 2011")
+    st.write("**Period:** Dec 2009 - Dec 2011")
     st.divider()
     st.title("Segments")
-    st.write("\U0001f3c6 **Champions** — Recent, frequent, high spend")
-    st.write("✅ **Loyal** — Regular buyers, solid spend")
-    st.write("⚠️ **At Risk** — Not bought recently")
-    st.write("\U0001f480 **Lost** — Long inactive")
+    st.write("\U0001f3c6 **Champions** -- Recent, frequent, high spend")
+    st.write("✅ **Loyal** -- Regular buyers, solid spend")
+    st.write("⚠️ **At Risk** -- Not bought recently")
+    st.write("\U0001f480 **Lost** -- Long inactive")
     st.divider()
     st.title("Models")
     st.write("**Churn:** XGBoost, AUC 0.778")
     st.write("**Forecast:** Trend + Seasonal decomposition")
-    st.write("**CLV:** Geometric lifetime × monthly spend")
+    st.write("**CLV:** Geometric lifetime x monthly spend")
