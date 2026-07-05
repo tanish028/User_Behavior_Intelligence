@@ -26,6 +26,8 @@ Retailers accumulate large volumes of transactional data but rarely extract acti
 | Machine learning | scikit-learn (KMeans, PCA, StandardScaler, silhouette score), XGBoost, SHAP |
 | Visualisation | matplotlib, seaborn |
 | Dashboard | Streamlit |
+| API | FastAPI, uvicorn |
+| Containerisation | Docker, Docker Compose |
 | Data source | UCI Online Retail II (.xlsx via openpyxl) |
 
 ---
@@ -47,17 +49,25 @@ user_behavior_intelligence/
 │   ├── cohort_analysis.py        # Cohort retention matrix + heatmap
 │   ├── markov_analysis.py        # Markov chain segment transition matrix
 │   ├── churn_model.py            # XGBoost churn classifier + evaluation
+│   ├── sql_analytics.py          # In-memory SQLite analytics queries
 │   └── recommendation.py        # Cluster-aware product recommendations
+├── api/
+│   └── main.py                   # FastAPI service (4 endpoints)
 ├── dashboard/
-│   └── app.py                    # Streamlit dashboard
+│   └── app.py                    # Streamlit dashboard (10 tabs)
 ├── notebooks/
 │   └── exploration.ipynb         # EDA notebook
+├── Dockerfile                    # Builds the FastAPI API image
+├── docker-compose.yml            # Runs API + dashboard together
+├── .dockerignore
 └── requirements.txt
 ```
 
 ---
 
 ## Setup
+
+### Option A — Run locally
 
 ```bash
 # 1. Install dependencies
@@ -70,6 +80,39 @@ python src/segmentation.py        # Generates rfm_data.csv with clusters
 
 # 3. Launch dashboard
 streamlit run dashboard/app.py
+
+# 4. Launch API (optional)
+uvicorn api.main:app --port 8001 --reload
+# Swagger UI: http://localhost:8001/docs
+```
+
+### Option B — Run with Docker
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```bash
+# Build and start both services (API + dashboard)
+docker compose up --build
+
+# API:       http://localhost:8001/docs
+# Dashboard: http://localhost:8501
+```
+
+The API container loads the ML model once at startup and exposes four endpoints:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/` | Health check — status and customer count |
+| POST | `/predict/churn` | Churn probability given F-score and M-score |
+| GET | `/customer/{id}` | Full RFM profile for a customer |
+| GET | `/recommend/{id}` | Top-N product recommendations |
+
+```bash
+# Stop containers
+docker compose down
+
+# Stream API logs
+docker compose logs -f api
 ```
 
 ---
