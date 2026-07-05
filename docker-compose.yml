@@ -1,0 +1,79 @@
+# docker-compose.yml — run the full stack with one command
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage:
+#   docker compose up          → start everything
+#   docker compose up --build  → rebuild images first, then start
+#   docker compose down        → stop and remove containers
+#   docker compose logs -f api → stream logs from the api service only
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# docker-compose lets you define multiple services (containers) and how they
+# relate to each other — shared networks, volumes, startup order, etc.
+# Without it you'd have to run docker build and docker run separately for
+# each service and manually wire them together.
+
+services:
+
+  # ── Service 1: FastAPI ML API ───────────────────────────────────────────────
+  api:
+    # build: tells Compose to build the image from the Dockerfile in this dir
+    # instead of pulling a pre-built image from Docker Hub.
+    build: .
+
+    # Container name — makes it easier to reference in logs and docker commands
+    container_name: ubi-api
+
+    # ports: maps host_port:container_port
+    # Left  (8001) = the port on YOUR machine (open in browser)
+    # Right (8001) = the port uvicorn listens on inside the container
+    ports:
+      - "8001:8001"
+
+    # volumes: mounts a host directory into the container at runtime.
+    # ./data:/app/data means the data/ folder on your machine is shared
+    # with /app/data inside the container — so if you update a CSV locally,
+    # the container sees it immediately without a rebuild.
+    # Format: host_path:container_path
+    volumes:
+      - ./data:/app/data
+
+    # environment: set env variables inside the container
+    environment:
+      - PYTHONUNBUFFERED=1
+
+    # restart policy: "on-failure" restarts the container if it crashes,
+    # but not if you manually stop it with docker compose down.
+    restart: on-failure
+
+  # ── Service 2: Streamlit Dashboard ─────────────────────────────────────────
+  dashboard:
+    # We don't have a separate Dockerfile for Streamlit, so we use
+    # the official Python image and install packages at startup.
+    # For a production setup you'd write a second Dockerfile instead.
+    image: python:3.11-slim
+
+    container_name: ubi-dashboard
+
+    # working_dir sets where commands run inside the container
+    working_dir: /app
+
+    # command overrides the default CMD from the image
+    command: >
+      sh -c "pip install -r requirements.txt -q &&
+             streamlit run dashboard/app.py
+             --server.port 8501
+             --server.address 0.0.0.0"
+
+    ports:
+      - "8501:8501"
+
+    volumes:
+      # Mount the whole project — Streamlit needs src/, data/, dashboard/
+      - .:/app
+
+    # depends_on: ensures the api service starts before the dashboard.
+    # Useful if the dashboard ever calls the API directly.
+    depends_on:
+      - api
+
+    restart: on-failure

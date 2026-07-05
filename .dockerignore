@@ -1,0 +1,42 @@
+# .dockerignore — files excluded from the Docker build context
+#
+# When you run "docker build", Docker sends all files in the directory to the
+# Docker daemon. .dockerignore prevents unnecessary files from being sent,
+# which makes builds faster and keeps the image smaller.
+#
+# Same idea as .gitignore — just for Docker instead of git.
+
+# Git history — not needed inside the container
+.git
+.gitignore
+
+# Python cache — rebuilt inside the container anyway
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments — the container uses its own Python
+venv/
+env/
+.env/
+.venv/
+
+# Notebooks — not needed for the API
+notebooks/
+
+# Streamlit dashboard — separate concern from the API
+dashboard/
+
+# Test outputs and plots saved locally
+data/*.png
+
+# Editor/OS clutter
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Streamlit config (API doesn't need it)
+.streamlit/
